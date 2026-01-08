@@ -2,5 +2,6 @@
 
 #include <Windows.h>
 
-void GetSystem();
-void GetTrustedInstaller(BOOL enableUIAccess = FALSE);
+void GetAdmin(LPWSTR params = nullptr);
+void GetSystem(LPWSTR params = nullptr);
+void GetTrustedInstaller(BOOL enableUIAccess = FALSE, LPWSTR params = nullptr);

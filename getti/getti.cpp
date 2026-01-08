@@ -57,6 +57,18 @@ static void EnableAllPrivileges(HANDLE hToken, BOOL bEnable) {
     }
 }
 
+static bool IsAdmin() {
+    HANDLE hToken = NULL;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        return false;
+    }
+    TOKEN_ELEVATION te{ 0 };
+    DWORD tokenInfoSize = 0;
+    BOOL isAdmin = GetTokenInformation(hToken, TokenElevation, &te, sizeof(te), &tokenInfoSize) && te.TokenIsElevated;
+    CloseHandle(hToken);
+    return isAdmin;
+}
+
 static bool IsSystem() {
     HANDLE hToken = NULL;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &hToken)) {
@@ -302,28 +314,44 @@ static bool StartProcessWithToken(HANDLE hToken, LPWSTR lpCommandLine) {
     return true;
 }
 
-void GetSystem() {
+void GetAdmin(LPWSTR params) {
+    if (IsAdmin()) return;
+    SHELLEXECUTEINFOW sei{ sizeof(sei) };
+    sei.lpVerb = L"runas";
+    WCHAR szPath[MAX_PATH] = { 0 };
+    GetModuleFileName(NULL, szPath, MAX_PATH);
+    sei.lpFile = szPath;
+    sei.lpParameters = params;
+    sei.nShow = SW_SHOWNORMAL;
+    ShellExecuteExW(&sei) == TRUE;
+}
+
+void GetSystem(LPWSTR params) {
+    GetAdmin();
     if (!IsSystem()) {
         HANDLE hToken = NULL;
         if (GetSystemToken(&hToken)) {
-            if (StartProcessWithToken(hToken, GetCommandLineW())) {
+            WCHAR szCmdLine[MAX_PATH] = { 0 };
+            GetModuleFileName(NULL, szCmdLine, MAX_PATH);
+            if (params) {
+                swprintf_s(szCmdLine, L"%s %s", szCmdLine, params);
+            }
+            if (StartProcessWithToken(hToken, szCmdLine)) {
                 CloseHandle(hToken);
                 ExitProcess(0);
             }
             else {
                 CloseHandle(hToken);
-                MessageBox(NULL, L"Failed to start process with system token. Administrator privileges may be required", L"Error", MB_ICONERROR | MB_OK);
                 ExitProcess(1);
             }
         }
         else {
-            MessageBox(NULL, L"Failed to get system token.", L"Error", MB_ICONERROR | MB_OK);
             ExitProcess(1);
         }
     }
 }
 
-void GetTrustedInstaller(BOOL enableUIAccess) {
+void GetTrustedInstaller(BOOL enableUIAccess, LPWSTR params) {
     GetSystem();
     if (!IsTrustedInstaller()) {
         HANDLE hToken = NULL;
@@ -331,18 +359,21 @@ void GetTrustedInstaller(BOOL enableUIAccess) {
             if (enableUIAccess) {
                 EnableUIAccess(&hToken);
             }
-            if (StartProcessWithToken(hToken, GetCommandLineW())) {
+            WCHAR szCmdLine[MAX_PATH] = { 0 };
+            GetModuleFileName(NULL, szCmdLine, MAX_PATH);
+            if (params) {
+                swprintf_s(szCmdLine, L"%s %s", szCmdLine, params);
+            }
+            if (StartProcessWithToken(hToken, szCmdLine)) {
                 CloseHandle(hToken);
                 ExitProcess(0);
             }
             else {
                 CloseHandle(hToken);
-                MessageBox(NULL, L"Failed to start process with TrustedInstaller token.", L"Error", MB_ICONERROR | MB_OK);
                 ExitProcess(1);
             }
         }
         else {
-            MessageBox(NULL, L"Failed to get TrustedInstaller token.", L"Error", MB_ICONERROR | MB_OK);
             ExitProcess(1);
         }
     }
