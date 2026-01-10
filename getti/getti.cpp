@@ -314,28 +314,24 @@ static bool StartProcessWithToken(HANDLE hToken, LPWSTR lpCommandLine) {
     return true;
 }
 
-void GetAdmin(LPWSTR params) {
+void GetAdmin(LPWSTR szCmdLine) {
     if (IsAdmin()) return;
     SHELLEXECUTEINFOW sei{ sizeof(sei) };
     sei.lpVerb = L"runas";
     WCHAR szPath[MAX_PATH] = { 0 };
     GetModuleFileName(NULL, szPath, MAX_PATH);
     sei.lpFile = szPath;
-    sei.lpParameters = params;
+    sei.lpParameters = szCmdLine;
     sei.nShow = SW_SHOWNORMAL;
-    ShellExecuteExW(&sei) == TRUE;
+    ShellExecuteExW(&sei);
+    ExitProcess(0);
 }
 
-void GetSystem(LPWSTR params) {
-    GetAdmin();
+void GetSystem(LPWSTR szCmdLine) {
+    GetAdmin(szCmdLine);
     if (!IsSystem()) {
         HANDLE hToken = NULL;
         if (GetSystemToken(&hToken)) {
-            WCHAR szCmdLine[MAX_PATH] = { 0 };
-            GetModuleFileName(NULL, szCmdLine, MAX_PATH);
-            if (params) {
-                swprintf_s(szCmdLine, L"%s %s", szCmdLine, params);
-            }
             if (StartProcessWithToken(hToken, szCmdLine)) {
                 CloseHandle(hToken);
                 ExitProcess(0);
@@ -351,18 +347,13 @@ void GetSystem(LPWSTR params) {
     }
 }
 
-void GetTrustedInstaller(BOOL enableUIAccess, LPWSTR params) {
-    GetSystem();
+void GetTrustedInstaller(BOOL enableUIAccess, LPWSTR szCmdLine) {
+    GetSystem(szCmdLine);
     if (!IsTrustedInstaller()) {
         HANDLE hToken = NULL;
         if (GetTrustedInstallerToken(&hToken)) {
             if (enableUIAccess) {
                 EnableUIAccess(&hToken);
-            }
-            WCHAR szCmdLine[MAX_PATH] = { 0 };
-            GetModuleFileName(NULL, szCmdLine, MAX_PATH);
-            if (params) {
-                swprintf_s(szCmdLine, L"%s %s", szCmdLine, params);
             }
             if (StartProcessWithToken(hToken, szCmdLine)) {
                 CloseHandle(hToken);
